@@ -1,96 +1,85 @@
 import streamlit as st
-import pandas as pd
-import random
+import google.generativeai as genai
+from fpdf import FPDF
+import io
 
-# --- PAGE CONFIG ---
-st.set_page_config(page_title="AI Book Writer Pro", layout="wide", page_icon="📖")
+# --- CONFIG ---
+st.set_page_config(page_title="Gemini Book Publisher", layout="wide")
 
-# --- CUSTOM CSS (To Match your Image) ---
-st.markdown("""
-    <style>
-    .genre-card { background: white; padding: 15px; border-radius: 10px; border: 1px solid #ddd; text-align: center; transition: 0.3s; }
-    .genre-card:hover { border-color: #7f56d9; background: #f9f5ff; }
-    .main-button { background-color: #7f56d9; color: white; border-radius: 8px; width: 100%; height: 3em; font-weight: bold; }
-    .batch-section { background-color: #f6fef9; border: 1px solid #6ce9a6; padding: 20px; border-radius: 12px; }
-    </style>
-    """, unsafe_allow_html=True)
+# اطلب من المستخدم إدخال مفتاح Gemini API
+gemini_key = st.sidebar.text_input("Enter Gemini API Key:", type="password")
 
-st.title("📖 AI Book Writer")
-st.markdown("Generate complete books using AI. Perfect for fiction, non-fiction, guides, and more.")
+if gemini_key:
+    genai.configure(api_key=gemini_key)
+    model = genai.GenerativeModel('gemini-1.5-flash')
 
-# --- SECTION 1: RANDOM GENERATOR ---
-with st.expander("🎲 Random Book Generator", expanded=False):
-    st.write("Let AI create a complete book idea for you!")
-    theme_input = st.text_input("Theme (Optional)", placeholder="e.g., 'space adventure'...")
-    col_r1, col_r2 = st.columns(2)
-    with col_r1:
-        if st.button("✨ Generate from Theme"):
-            st.success("Title: The Echoes of Mars | Genre: Sci-Fi | Plot: A lost colony discovers an ancient signal.")
-    with col_r2:
-        if st.button("🎲 Fully Random"):
-            st.info("Title: The Silent Chef | Genre: Mystery | Plot: A gourmet murder at a silent retreat.")
+st.title("📖 Gemini AI Book Writer (KDP Ready)")
+st.info("هذا الموديل يستخدم Gemini لتوليد محتوى كامل وتصديره بصيغة PDF حقيقية.")
 
-# --- SECTION 2: BATCH MODE ---
-st.markdown('<div class="batch-section">', unsafe_allow_html=True)
-st.subheader("📚 Batch Book Generator")
-show_batch = st.checkbox("Show Batch Mode")
-if show_batch:
-    num_books = st.number_input("How many books to generate?", 1, 10, 3)
-    for i in range(int(num_books)):
-        st.text_input(f"Book Title {i+1} *", key=f"title_{i}")
-st.markdown('</div>', unsafe_allow_html=True)
+# --- UI SETTINGS (Based on your shared images) ---
+col1, col2 = st.columns(2)
+with col1:
+    genre = st.selectbox("Genre", ["Self-Help", "Educational", "Fantasy", "Business"])
+    title = st.text_input("Book Title:", value="Je me choisis: 101 Vérités")
+    author = st.text_input("Author Name:", value="Camélia Artémis")
 
-st.divider()
+with col2:
+    chapters_count = st.number_input("Number of Chapters:", 1, 20, 11)
+    target_audience = st.radio("Target Audience:", ["Adults", "Teens", "Children"], index=0)
 
-# --- SECTION 3: BOOK SETTINGS (The Core) ---
-st.subheader("Book Settings")
-col_s1, col_s2 = st.columns([2, 1])
+description = st.text_area("Brief Description/Theme:", "les relations toxiques, la résilience, le développement personnel")
 
-with col_s1:
-    genre = st.selectbox("Genre *", [
-        "Children's Adventure", "Children's Educational", "Romance", 
-        "Mystery", "Fantasy", "Science Fiction", "Self-Help", "How-To Guide"
-    ])
-    
-    book_title = st.text_input("Book Title (Optional - AI will generate if left blank)")
-    author = st.text_input("Author Name (Optional)", value="Anonymous")
-    
-    c_col1, c_col2 = st.columns(2)
-    with c_col1:
-        chapters = st.number_input("Number of Chapters *", 1, 50, 10)
-    with c_col2:
-        words_per = st.number_input("Words per Chapter *", 100, 5000, 800)
-    
-    total_words = chapters * words_per
-    st.caption(f"Total Book: ~{total_words:,} words ({int(total_words/250)} pages)")
+# --- GENERATION LOGIC ---
+if st.button("🚀 Generate Full Book with Gemini"):
+    if not gemini_key:
+        st.error("Please enter your Gemini API Key in the sidebar.")
+    else:
+        full_text = ""
+        progress_bar = st.progress(0)
+        
+        try:
+            with st.spinner("Gemini is writing your book... Please wait."):
+                for i in range(1, chapters_count + 1):
+                    # إنشاء طلب لكل فصل لضمان الدقة
+                    prompt = f"Write Chapter {i} of a {genre} book titled '{title}'. Theme: {description}. Tone: Professional. Language: French. Length: 800 words."
+                    response = model.generate_content(prompt)
+                    
+                    chapter_content = response.text
+                    full_text += f"\n\n--- Chapter {i} ---\n\n" + chapter_content
+                    
+                    # تحديث شريط التقدم
+                    progress_bar.progress(i / chapters_count)
+            
+            st.success("Book content generated successfully!")
+            
+            # --- PDF CREATION (FIXED) ---
+            pdf = FPDF(format='letter') # أو استخدم (152.4, 228.6) لـ 6x9 inches
+            pdf.add_page()
+            pdf.set_auto_page_break(auto=True, margin=15)
+            
+            # إضافة العنوان
+            pdf.set_font("Arial", 'B', 16)
+            pdf.cell(200, 10, txt=title, ln=True, align='C')
+            pdf.set_font("Arial", size=12)
+            pdf.cell(200, 10, txt=f"By {author}", ln=True, align='C')
+            
+            # إضافة المحتوى (تنظيف النص من الرموز غير المدعومة في FPDF)
+            pdf.ln(10)
+            clean_text = full_text.encode('latin-1', 'ignore').decode('latin-1')
+            pdf.multi_cell(0, 10, txt=clean_text)
+            
+            # تصدير الملف كـ Bytes لضمان عدم تلفه
+            pdf_output = pdf.output(dest='S').encode('latin-1')
+            
+            st.download_button(
+                label="📥 Download KDP-ready PDF",
+                data=pdf_output,
+                file_name="gemini_kdp_book.pdf",
+                mime="application/pdf"
+            )
+            
+        except Exception as e:
+            st.error(f"Error during generation: {e}")
 
-    audience = st.radio("Target Audience *", ["Ages 3-7", "Ages 8-12", "Teens", "Adults"], horizontal=True)
-    tone = st.selectbox("Writing Tone *", ["Professional", "Casual", "Playful", "Inspirational"])
-    
-    description = st.text_area("Book Description (Optional)")
-    if st.button("🪄 AI Generate Description"):
-        st.write("Generating a professional description based on your title...")
-
-with col_s2:
-    st.subheader("Progress")
-    st.info("Configure settings and click generate.")
-    
-    st.subheader("🤖 AI Model *")
-    model = st.radio("Choose Model", ["GPT-4o Mini (Recommended)", "GPT-4o (Premium)"])
-    
-    st.subheader("📦 Export Formats")
-    formats = st.multiselect("Select Formats", ["PDF (KDP-ready 6x9\")", "EPUB", "MOBI", "KPF"])
-
-# --- GENERATE ACTION ---
-if st.button("🚀 Generate Book", use_container_width=True):
-    with st.status("Generating Book Content...", expanded=True) as status:
-        st.write("Generating Chapter 1: The Beginning...")
-        st.progress(10)
-        # Here you would call your OpenAI/Anthropic API
-        st.write("Generating Chapter 2: The Rising Conflict...")
-        st.progress(25)
-        status.update(label="Book Generation Complete!", state="complete", expanded=False)
-    
-    st.balloons()
-    st.success("Your book is ready for download!")
-    st.download_button("📥 Download PDF (6x9\")", "Book Content Here", file_name="kdp_book.pdf")
+st.sidebar.markdown("---")
+st.sidebar.caption("Partner Suite v10 | Powered by Gemini 1.5")
