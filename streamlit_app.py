@@ -2,100 +2,90 @@ import streamlit as st
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-import time
 
-# --- PROFESSIONAL PAGE CONFIG ---
-st.set_page_config(page_title="KDP Ultimate Spy", layout="wide", page_icon="🎯")
+# --- ADVANCED PAGE CONFIG ---
+st.set_page_config(page_title="KDP Global Spy v4", layout="wide", page_icon="🌍")
 
 # Your ScraperAPI Key
 SCRAPER_API_KEY = "e08bf59c7ece2da93a40bb0608d59f47"
 
-st.title("🎯 KDP Niche Hunter - Ultra Stable Version")
-st.info("This version uses 'Smart Selectors' to find data even if Amazon changes its design.")
+st.title("🌍 KDP Global Niche Hunter")
+st.write("Specialized in Multi-Market Analysis (USA, France, UK, Germany)")
 
-# --- INPUTS ---
+# --- INPUT SECTION ---
 col1, col2 = st.columns([1, 2])
 with col1:
-    market = st.selectbox("Select Marketplace", ["amazon.com", "amazon.fr", "amazon.co.uk", "amazon.de"])
+    market = st.selectbox("Select Marketplace", ["amazon.fr", "amazon.com", "amazon.co.uk", "amazon.de"])
 with col2:
-    query = st.text_input("Enter Keyword:", placeholder="e.g., 'Cahier de texte'")
+    query = st.text_input("Enter Niche Keyword (e.g., 'agenda', 'cahier de texte'):", placeholder="agenda")
 
-def calculate_royalty(price_text):
+def get_royalty(price_text):
     try:
-        clean_price = "".join(filter(lambda x: x.isdigit() or x in ".,", price_text)).replace(',', '.')
-        price = float(clean_price)
+        clean = "".join(filter(lambda x: x.isdigit() or x in ".,", price_text)).replace(',', '.')
+        price = float(clean)
+        # KDP Standard Royalty: (60% - Printing 2.15)
         return f"{(price * 0.60) - 2.15:.2f}"
     except:
         return "N/A"
 
-if st.button("🚀 Start Market Research"):
+if st.button("🚀 Start Global Research"):
     if query:
-        search_url = f"https://www.{market}/s?k={query.replace(' ', '+')}&i=stripbooks"
+        # Determine the proxy country based on the marketplace
+        country_code = 'fr' if 'amazon.fr' in market else ('us' if 'amazon.com' in market else 'gb')
         
-        # We add 'autoparse=true' which is a powerful feature of ScraperAPI 
-        # that handles the HTML structure for us
+        target_url = f"https://www.{market}/s?k={query.replace(' ', '+')}&i=stripbooks"
+        
+        # ScraperAPI Professional Payload
         payload = {
             'api_key': SCRAPER_API_KEY,
-            'url': search_url,
-            'premium': 'true', # Use premium proxies to avoid "No Data"
-            'country_code': 'us' if market == 'amazon.com' else 'fr'
+            'url': target_url,
+            'country_code': country_code, # IMPORTANT: Tells ScraperAPI to use local proxies
+            'render': 'false',
+            'premium': 'true' # Using premium proxies to bypass strict EU blocks
         }
         
-        with st.spinner('Scanning Amazon Marketplace... Please wait.'):
+        with st.spinner(f'Accessing {market} using local {country_code.upper()} proxies...'):
             try:
-                # We will try a different approach: searching for 's-result-item'
                 response = requests.get('http://api.scraperapi.com', params=payload, timeout=60)
                 
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.content, "html.parser")
                     
-                    # More robust selector
-                    products = soup.find_all("div", {"class": "s-result-item"})
+                    # New resilient search items selector
+                    products = soup.select('div[data-component-type="s-search-result"]')
                     
-                    extracted_data = []
-                    for product in products:
-                        # Find Title
-                        title_tag = product.find("h2")
+                    market_data = []
+                    for item in products[:20]:
+                        title_tag = item.h2
                         if not title_tag: continue
-                        title = title_tag.text.strip()
                         
-                        # Find ASIN
-                        asin = product.get('data-asin')
-                        if not asin: continue
-                        
-                        # Find Price
-                        price_tag = product.select_one(".a-price .a-offscreen")
+                        asin = item.get('data-asin', 'N/A')
+                        price_tag = item.select_one('.a-price .a-offscreen')
                         price = price_tag.text if price_tag else "N/A"
                         
-                        # Find Ratings
-                        rating_tag = product.select_one("span.a-icon-alt")
-                        rating = rating_tag.text.split()[0] if rating_tag else "0"
+                        rating_tag = item.select_one('span.a-icon-alt')
+                        stars = rating_tag.text.split()[0] if rating_tag else "0"
+                        
+                        # Extra logic for France prices (sometimes uses commas)
+                        royalty = get_royalty(price)
 
-                        extracted_data.append({
-                            "Title": title[:60] + "...",
+                        market_data.append({
+                            "Title": title_tag.text.strip()[:65] + "...",
                             "ASIN": asin,
                             "Price": price,
-                            "Est. Royalty": f"{calculate_royalty(price)} {market[-2:].upper()}",
-                            "Rating": rating,
+                            "Est. Profit": f"{royalty} {market[-2:].upper()}",
+                            "Ratings": stars,
                             "Link": f"https://www.{market}/dp/{asin}"
                         })
 
-                    if extracted_data:
-                        df = pd.DataFrame(extracted_data)
-                        st.success(f"Found {len(extracted_data)} results!")
-                        st.dataframe(df, use_container_width=True)
-                        
-                        csv = df.to_csv(index=False).encode('utf-8')
-                        st.download_button("📥 Download Excel Report", csv, "kdp_data.csv", "text/csv")
+                    if market_data:
+                        st.success(f"Successfully unlocked {market} data!")
+                        st.table(pd.DataFrame(market_data))
                     else:
-                        st.error("Amazon blocked the parsing. Try switching the 'Marketplace' or wait 2 minutes.")
-                        # Debugging: show what the API actually sees
-                        with st.expander("Show Technical Log"):
-                            st.write(f"Status: {response.status_code}")
-                            st.write("Amazon detected the scraper. Trying 'Premium' mode in ScraperAPI is recommended.")
+                        st.error("Still blocked. Try a different keyword or check your ScraperAPI credits.")
                 else:
-                    st.error(f"API Error: {response.status_code}")
+                    st.error(f"Market Blocked: Status {response.status_code}")
             except Exception as e:
-                st.error(f"Error: {e}")
+                st.error(f"Technical Error: {e}")
     else:
         st.warning("Please enter a keyword.")
