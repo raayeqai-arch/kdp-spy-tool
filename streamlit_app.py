@@ -5,6 +5,7 @@ from bs4 import BeautifulSoup
 from datetime import datetime
 import re
 from collections import Counter
+from urllib.parse import quote
 
 # --- ADVANCED CONFIG ---
 st.set_page_config(page_title="KDP Command Center v2.0", layout="wide", page_icon="📈")
@@ -16,6 +17,7 @@ st.markdown("""
     .main { background-color: #f5f7f9; }
     .stButton>button { width: 100%; border-radius: 5px; height: 3em; background-color: #ff9900; color: white; }
     .status-box { padding: 20px; border-radius: 10px; background-color: white; border-left: 5px solid #ff9900; }
+    .img-container { border: 2px solid #ff9900; border-radius: 10px; padding: 5px; background: white; }
     </style>
     """, unsafe_allow_html=True)
 
@@ -44,7 +46,7 @@ def fetch_amazon_data(market, query, country_code):
     except:
         return None
 
-# --- TOOL 1: GLOBAL SPY PRO (Your working code improved) ---
+# --- TOOL 1: GLOBAL SPY PRO ---
 if app_mode == "Global Spy Pro":
     st.title("🌍 KDP Global Niche Hunter")
     col1, col2 = st.columns([1, 2])
@@ -64,7 +66,8 @@ if app_mode == "Global Spy Pro":
                 for item in items[:20]:
                     title = item.h2.text.strip() if item.h2 else "N/A"
                     asin = item.get('data-asin', 'N/A')
-                    price = item.select_one('.a-price .a-offscreen').text if item.select_one('.a-price .a-offscreen') else "N/A"
+                    price_tag = item.select_one('.a-price .a-offscreen')
+                    price = price_tag.text if price_tag else "N/A"
                     data.append({"Title": title[:60], "ASIN": asin, "Price": price, "Link": f"https://{market}/dp/{asin}"})
                 st.dataframe(pd.DataFrame(data), use_container_width=True)
 
@@ -72,15 +75,12 @@ if app_mode == "Global Spy Pro":
 elif app_mode == "Hot Trends (EU)":
     st.title("🔥 Current EU Hot Trends")
     st.info("Live market trends for high-demand seasonal niches.")
-    
-    # Static Data curated from KDP algorithms (Can be automated with BSR scrapers)
     trends = {
         "France (FR)": ["Agenda Scolaire 2025-2026", "Livre de Coloriage Adulte", "Cahier de Vacances CP", "Journal de Gratitude"],
-        "Germany (DE)": ["Schulplaner 2025", "Malbuch für Kinder", "Haushaltsbuch", "Dankبarkeit Tagebuch"],
+        "Germany (DE)": ["Schulplaner 2025", "Malbuch für Kinder", "Haushaltsbuch", "Dankbarkeit Tagebuch"],
         "Italy (IT)": ["Agenda Settimanale 2025", "Libro da Colorare", "Diario Segreto"],
         "Spain (ES)": ["Agenda Escolar", "Libro de Colorear para Adultos", "Cuaderno de Actividades"]
     }
-    
     cols = st.columns(len(trends))
     for i, (country, items) in enumerate(trends.items()):
         with cols[i]:
@@ -91,43 +91,61 @@ elif app_mode == "Hot Trends (EU)":
 # --- TOOL 3: 7-SLOT KEY-GEN ---
 elif app_mode == "7-Slot Key-Gen":
     st.title("🔑 The 7-Slot Optimizer")
-    st.markdown("Enter your book title or niche to generate high-conversion keywords.")
-    
     input_text = st.text_input("Enter Title/Niche:")
     if st.button("Generate Pro Keywords"):
-        # Logic: Mimicking high-quality buyer search intent
-        keywords = [
-            f"{input_text} for beginners", f"best {input_text} 2025",
-            f"personalized {input_text}", f"large print {input_text}",
-            f"gift ideas {input_text}", f"professional {input_text} notebook",
-            f"daily {input_text} tracker"
-        ]
+        keywords = [f"{input_text} for beginners", f"best {input_text} 2025", f"personalized {input_text}", f"large print {input_text}", f"gift ideas {input_text}", f"professional {input_text} notebook", f"daily {input_text} tracker"]
         st.success("Target these for your 7 backend slots:")
-        for i, kw in enumerate(keywords):
-            st.code(f"Slot {i+1}: {kw}")
+        for i, kw in enumerate(keywords): st.code(f"Slot {i+1}: {kw}")
 
 # --- TOOL 4: AI PRODUCT RESEARCH ---
 elif app_mode == "AI Product Research":
     st.title("🧠 AI Niche Deep-Dive")
-    st.markdown("Manual research assisted by AI Logic.")
-    
     target_niche = st.text_input("Niche to analyze:")
     if target_niche:
         with st.expander("View AI Analysis Report"):
-            st.write(f"**Niche Profitability:** High (based on EU demand)")
+            st.write(f"**Niche Profitability:** High")
             st.write(f"**Competition Level:** Medium-Low in {datetime.now().year}")
             st.write(f"**Recommended Price:** 7.99€ - 12.99€")
-            st.write("**Winning Strategy:** Focus on 'Minimalist Design' for the French market.")
 
-# --- TOOL 5: CREATIVE STUDIO ---
+# --- TOOL 5: CREATIVE STUDIO (IMAGE GENERATOR) ---
 elif app_mode == "Creative Studio":
-    st.title("🎨 AI Creative & Cover Studio")
-    st.write("Generate cover prompts or design concepts.")
+    st.title("🎨 AI Image & Cover Generator")
+    st.markdown("Generate high-quality visuals for your KDP covers and interiors.")
     
-    theme = st.text_input("Book Theme (e.g., 'Vintage Flowers'):")
-    if theme:
-        st.info(f"Suggested Image Prompt: 'High definition, 8k, professional book cover, {theme} theme, pastel colors, minimalist typography, Amazon KDP ready.'")
-        st.warning("Note: Use tools like Midjourney or Canva AI for the final render.")
+    col_a, col_b = st.columns([1, 1])
+    
+    with col_a:
+        st.subheader("Design Settings")
+        subject = st.text_input("Main Subject:", placeholder="e.g., 'Cute cat playing with wool'")
+        style = st.selectbox("Art Style:", ["Minimalist Vector", "Watercolor Painting", "Oil Painting", "3D Render", "Vintage Illustration", "Coloring Book Page (Black & White)"])
+        ratio = st.selectbox("Aspect Ratio:", ["1:1 (Square)", "2:3 (Book Cover)", "3:2 (Landscape)"])
+        
+        generate_btn = st.button("🎨 Generate Image")
+
+    with col_b:
+        st.subheader("Preview")
+        if generate_btn and subject:
+            # Constructing a high-quality prompt for the AI
+            final_prompt = f"{subject}, {style} style, high resolution, professional lighting, detailed, 8k, amazon kdp style"
+            if "Coloring Book" in style:
+                final_prompt = f"Black and white, bold lines, coloring book page for kids, {subject}, white background, no shading"
+            
+            # Use Pollinations AI for free image generation
+            width = 1024
+            height = 1536 if "2:3" in ratio else (1024 if "1:1" in ratio else 680)
+            
+            encoded_prompt = quote(final_prompt)
+            image_url = f"https://image.pollinations.ai/prompt/{encoded_prompt}?width={width}&height={height}&nologo=true&enhance=true"
+            
+            with st.spinner("AI is painting your design..."):
+                try:
+                    st.markdown(f'<div class="img-container"><img src="{image_url}" width="100%"></div>', unsafe_allow_html=True)
+                    st.markdown(f"[🔗 Open Full Image]({image_url})")
+                    st.info(f"**Final Prompt Used:** {final_prompt}")
+                except:
+                    st.error("Image generation failed. Try a different prompt.")
+        else:
+            st.info("Enter a subject and click generate to see the magic.")
 
 st.sidebar.markdown("---")
 st.sidebar.info(f"Partner, your capital of 90,000 MAD is in safe hands with data-driven decisions.")
