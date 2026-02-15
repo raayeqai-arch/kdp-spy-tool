@@ -2,60 +2,67 @@ import streamlit as st
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
+from datetime import datetime
 
-# --- ADVANCED PAGE CONFIG ---
-st.set_page_config(page_title="KDP Global Spy v4", layout="wide", page_icon="🌍")
-
-# Your ScraperAPI Key
+# --- CONFIG ---
+st.set_page_config(page_title="KDP Global Spy Pro", layout="wide", page_icon="🌍")
 SCRAPER_API_KEY = "e08bf59c7ece2da93a40bb0608d59f47"
 
-st.title("🌍 KDP Global Niche Hunter")
-st.write("Specialized in Multi-Market Analysis (USA, France, UK, Germany)")
+st.title("🌍 KDP Global Niche Hunter (Advanced FR Unblock)")
+st.info("Specialized logic for Amazon.fr & Amazon.com bypass.")
 
-# --- INPUT SECTION ---
+# --- INPUTS ---
 col1, col2 = st.columns([1, 2])
 with col1:
-    market = st.selectbox("Select Marketplace", ["amazon.fr", "amazon.com", "amazon.co.uk", "amazon.de"])
+    market = st.selectbox("Target Market", ["amazon.fr", "amazon.com", "amazon.co.uk"])
 with col2:
-    query = st.text_input("Enter Niche Keyword (e.g., 'agenda', 'cahier de texte'):", placeholder="agenda")
+    query = st.text_input("Niche Keyword:", placeholder="e.g., 'Agenda Scolaire'")
 
-def get_royalty(price_text):
-    try:
-        clean = "".join(filter(lambda x: x.isdigit() or x in ".,", price_text)).replace(',', '.')
-        price = float(clean)
-        # KDP Standard Royalty: (60% - Printing 2.15)
-        return f"{(price * 0.60) - 2.15:.2f}"
-    except:
-        return "N/A"
+# --- SEASONAL STRATEGY ---
+def get_kdp_advice(kw):
+    curr_month = datetime.now().month
+    if "agenda" in kw.lower() or "planner" in kw.lower():
+        if 2 <= curr_month <= 5:
+            return "🛠️ **Preparation Phase:** Design and upload now for the summer back-to-school rush."
+        return "📈 **Observation Phase:** Monitor competition and adjust keywords."
+    return "📊 **Regular Niche:** Consistent demand. Focus on design quality."
 
-if st.button("🚀 Start Global Research"):
+# --- MAIN ENGINE ---
+if st.button("🚀 Analyze Market"):
     if query:
-        # Determine the proxy country based on the marketplace
-        country_code = 'fr' if 'amazon.fr' in market else ('us' if 'amazon.com' in market else 'gb')
+        st.info(get_kdp_advice(query))
         
-        target_url = f"https://www.{market}/s?k={query.replace(' ', '+')}&i=stripbooks"
+        # Determine Proxy Country
+        proxy_country = 'fr' if 'fr' in market else 'us'
         
-        # ScraperAPI Professional Payload
+        # ScraperAPI with Advanced Parameters
         payload = {
             'api_key': SCRAPER_API_KEY,
-            'url': target_url,
-            'country_code': country_code, # IMPORTANT: Tells ScraperAPI to use local proxies
-            'render': 'false',
-            'premium': 'true' # Using premium proxies to bypass strict EU blocks
+            'url': f"https://www.{market}/s?k={query.replace(' ', '+')}&i=stripbooks",
+            'country_code': proxy_country,
+            'premium': 'true', # Using premium is mandatory for Amazon.fr
+            'device_type': 'desktop',
+            'keep_headers': 'true' # Keeps our custom language headers
         }
         
-        with st.spinner(f'Accessing {market} using local {country_code.upper()} proxies...'):
+        # Specific headers for France to fool Amazon's regional check
+        headers = {
+            "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Referer": f"https://www.{market}/"
+        }
+
+        with st.spinner(f'Unlocking {market} via {proxy_country.upper()} Premium Tunnel...'):
             try:
-                response = requests.get('http://api.scraperapi.com', params=payload, timeout=60)
+                response = requests.get('http://api.scraperapi.com', params=payload, headers=headers, timeout=60)
                 
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.content, "html.parser")
+                    # Targeting the exact result items
+                    items = soup.select('div[data-component-type="s-search-result"]')
                     
-                    # New resilient search items selector
-                    products = soup.select('div[data-component-type="s-search-result"]')
-                    
-                    market_data = []
-                    for item in products[:20]:
+                    data_list = []
+                    for item in items[:20]:
                         title_tag = item.h2
                         if not title_tag: continue
                         
@@ -65,27 +72,21 @@ if st.button("🚀 Start Global Research"):
                         
                         rating_tag = item.select_one('span.a-icon-alt')
                         stars = rating_tag.text.split()[0] if rating_tag else "0"
-                        
-                        # Extra logic for France prices (sometimes uses commas)
-                        royalty = get_royalty(price)
 
-                        market_data.append({
+                        data_list.append({
                             "Title": title_tag.text.strip()[:65] + "...",
                             "ASIN": asin,
                             "Price": price,
-                            "Est. Profit": f"{royalty} {market[-2:].upper()}",
-                            "Ratings": stars,
+                            "Stars": stars,
                             "Link": f"https://www.{market}/dp/{asin}"
                         })
 
-                    if market_data:
-                        st.success(f"Successfully unlocked {market} data!")
-                        st.table(pd.DataFrame(market_data))
+                    if data_list:
+                        st.success(f"Success! {len(data_list)} books found in {market}.")
+                        st.dataframe(pd.DataFrame(data_list), use_container_width=True)
                     else:
-                        st.error("Still blocked. Try a different keyword or check your ScraperAPI credits.")
+                        st.error("Amazon France returned a custom layout. Try a generic keyword like 'agenda' to test.")
                 else:
-                    st.error(f"Market Blocked: Status {response.status_code}")
+                    st.error(f"Blocked (Status {response.status_code}). ScraperAPI credits might be low or Amazon is rotating IPs.")
             except Exception as e:
                 st.error(f"Technical Error: {e}")
-    else:
-        st.warning("Please enter a keyword.")
