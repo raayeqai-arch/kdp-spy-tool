@@ -3,79 +3,80 @@ import pandas as pd
 import requests
 from bs4 import BeautifulSoup
 
-# Page Config
-st.set_page_config(page_title="KDP Spy Tool Pro (ScraperAPI)", layout="wide")
+# إعداد الصفحة
+st.set_page_config(page_title="KDP Auto-Analyzer", layout="wide")
 
-st.title("🚀 KDP Niche Analyzer - ScraperAPI Edition")
-st.markdown("---")
+# دمج كود الـ API الخاص بك مباشرة
+SCRAPER_API_KEY = "e08bf59c7ece2da93a40bb0608d59f47"
 
-# Sidebar Configuration
-st.sidebar.header("Setup")
-api_key = st.sidebar.text_input("Enter ScraperAPI Key:", type="password")
-market = st.sidebar.selectbox("Marketplace", ["amazon.com", "amazon.fr", "amazon.co.uk"])
-search_query = st.text_input("Enter Niche Keyword (e.g., 'Cahier de texte'):")
+st.title("🚀 KDP Automated Niche Finder")
+st.write("الأداة الآن مرتبطة مباشرة بحسابك في ScraperAPI")
 
-if st.button("Deep Analysis"):
-    if not api_key:
-        st.warning("Please enter your ScraperAPI Key in the sidebar.")
-    elif not search_query:
-        st.warning("Please enter a keyword.")
-    else:
-        # Constructing the ScraperAPI Proxy URL
-        # This will route your request through their professional proxies
-        payload = { 
-            'api_key': api_key, 
-            'url': f"https://www.{market}/s?k={search_query.replace(' ', '+')}&i=stripbooks" 
+# اختيار السوق والكلمة المفتاحية
+col1, col2 = st.columns([1, 3])
+with col1:
+    market = st.selectbox("Marketplace", ["amazon.com", "amazon.fr", "amazon.co.uk"])
+with col2:
+    query = st.text_input("Enter Niche Keyword:", "")
+
+def get_royalty(price_str):
+    try:
+        # تنظيف السعر وحساب الربح التقريبي (60% ناقص تكلفة الطباعة)
+        p = float(price_str.replace('$', '').replace('€', '').replace('£', '').replace(',', '.'))
+        return f"{(p * 0.60) - 2.15:.2f}"
+    except:
+        return "N/A"
+
+if st.button("Start Deep Analysis"):
+    if query:
+        # إعداد الرابط عبر ScraperAPI
+        payload = {
+            'api_key': SCRAPER_API_KEY,
+            'url': f"https://www.{market}/s?k={query.replace(' ', '+')}&i=stripbooks"
         }
         
-        with st.spinner('ScraperAPI is bypassing Amazon protection...'):
+        with st.spinner('Fetching live data...'):
             try:
+                # الطلب يمر عبر البروكسي لتجنب الحظر
                 response = requests.get('http://api.scraperapi.com', params=payload, timeout=60)
                 
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.content, "html.parser")
                     products = soup.find_all("div", {"data-component-type": "s-search-result"})
                     
-                    data_list = []
-                    for product in products[:20]: # Fetching top 20 results
-                        title = product.h2.text.strip() if product.h2 else "N/A"
-                        asin = product.get('data-asin', 'N/A')
-                        
-                        # Price
-                        price_element = product.find("span", "a-offscreen")
+                    final_data = []
+                    for item in products[:15]:
+                        title = item.h2.text.strip()[:60] + "..." if item.h2 else "N/A"
+                        asin = item.get('data-asin', 'N/A')
+                        price_element = item.find("span", "a-offscreen")
                         price = price_element.text if price_element else "N/A"
+                        rating = item.find("span", "a-icon-alt").text.split()[0] if item.find("span", "a-icon-alt") else "0"
                         
-                        # Ratings
-                        rating_element = product.find("span", "a-icon-alt")
-                        rating = rating_element.text.split(" ")[0] if rating_element else "0"
-                        
-                        # Reviews count
-                        review_count = product.find("span", {"class": "a-size-base", "dir": "auto"})
-                        reviews = review_count.text if review_count else "0"
-
-                        data_list.append({
-                            "Title": title,
+                        final_data.append({
+                            "Book Title": title,
                             "ASIN": asin,
                             "Price": price,
+                            "Est. Royalty": f"{get_royalty(price)} {market[-2:]}",
                             "Rating": rating,
-                            "Reviews": reviews,
                             "Link": f"https://www.{market}/dp/{asin}"
                         })
-
-                    if data_list:
-                        df = pd.DataFrame(data_list)
-                        st.success(f"Successfully analyzed {len(data_list)} books for '{search_query}'")
-                        st.dataframe(df, use_container_width=True)
+                    
+                    if final_data:
+                        df = pd.DataFrame(final_data)
+                        st.success(f"Found {len(final_data)} high-quality results!")
+                        st.table(df) # عرض النتائج في جدول مرتب
                         
-                        # CSV Download
+                        # زر تحميل التقرير
                         csv = df.to_csv(index=False).encode('utf-8')
-                        st.download_button("📥 Download Research Report", csv, "kdp_market_research.csv", "text/csv")
+                        st.download_button("📥 Download Excel Report", csv, "kdp_research.csv", "text/csv")
                     else:
-                        st.error("Results found but couldn't be parsed. Try a different keyword.")
+                        st.error("No data found. Amazon might have updated its layout.")
                 else:
-                    st.error(f"ScraperAPI Error: Status {response.status_code}. Check your API Key.")
+                    st.error(f"Error: {response.status_code}. Please check your ScraperAPI balance.")
             except Exception as e:
-                st.error(f"Technical Error: {e}")
+                st.error(f"Technical error occurred: {e}")
+    else:
+        st.warning("Please enter a keyword to search.")
 
 st.markdown("---")
-st.info("💡 **Tip:** Use your ScraperAPI key from your dashboard to bypass 503 errors forever.")
+st.caption("Developed for KDP Professional Publishing Analysis")
