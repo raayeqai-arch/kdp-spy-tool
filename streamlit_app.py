@@ -2,95 +2,91 @@ import streamlit as st
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from collections import Counter
-import re
+from datetime import datetime
 
-# --- GLOBAL CONFIG ---
-st.set_page_config(page_title="KDP Spy Ultra v7", layout="wide", page_icon="🛡️")
+# --- CONFIG ---
+st.set_page_config(page_title="KDP Global Spy Pro", layout="wide", page_icon="🌍")
 SCRAPER_API_KEY = "e08bf59c7ece2da93a40bb0608d59f47"
 
-st.title("🛡️ KDP Niche Intelligence (Anti-Block v7)")
-st.markdown("Advanced bypass enabled for **Amazon.fr**. This version simulates real user behavior.")
-st.divider()
+st.title("🌍 KDP Global Niche Hunter (Advanced FR Unblock)")
+st.info("Specialized logic for Amazon.fr & Amazon.com bypass.")
 
-# --- INPUT SECTION ---
+# --- INPUTS ---
 col1, col2 = st.columns([1, 2])
 with col1:
-    market = st.selectbox("Marketplace", ["amazon.fr", "amazon.com", "amazon.co.uk"])
+    market = st.selectbox("Target Market", ["amazon.fr", "amazon.com", "amazon.co.uk"])
 with col2:
-    query = st.text_input("Enter Niche Keyword:", value="agenda scolaire 2026 2027")
+    query = st.text_input("Niche Keyword:", placeholder="e.g., 'Agenda Scolaire'")
 
-# --- KEYWORD ENGINE ---
-def extract_top_keywords(titles):
-    stop_words = {'a', 'an', 'the', 'for', 'with', 'and', 'in', 'on', 'of', 'to', 'is', 'de', 'la', 'le', 'et', 'pour', 'des', 'du', 'un', 'une', 'les'}
-    all_words = []
-    for title in titles:
-        words = re.findall(r'\w+', title.lower())
-        all_words.extend([w for w in words if w not in stop_words and len(w) > 2 and not w.isdigit()])
-    return Counter(all_words).most_common(10)
+# --- SEASONAL STRATEGY ---
+def get_kdp_advice(kw):
+    curr_month = datetime.now().month
+    if "agenda" in kw.lower() or "planner" in kw.lower():
+        if 2 <= curr_month <= 5:
+            return "🛠️ **Preparation Phase:** Design and upload now for the summer back-to-school rush."
+        return "📈 **Observation Phase:** Monitor competition and adjust keywords."
+    return "📊 **Regular Niche:** Consistent demand. Focus on design quality."
 
-# --- THE ENGINE ---
-if st.button("🔍 Run Deep Market Analysis"):
+# --- MAIN ENGINE ---
+if st.button("🚀 Analyze Market"):
     if query:
+        st.info(get_kdp_advice(query))
+        
+        # Determine Proxy Country
         proxy_country = 'fr' if 'fr' in market else 'us'
         
-        # WE USE 'ULTRA' SETTINGS FOR FRANCE
+        # ScraperAPI with Advanced Parameters
         payload = {
             'api_key': SCRAPER_API_KEY,
             'url': f"https://www.{market}/s?k={query.replace(' ', '+')}&i=stripbooks",
             'country_code': proxy_country,
-            'premium': 'true',
-            'render': 'true',
-            'wait_for_selector': '.s-result-item', # Crucial: Wait for results to load
-            'session_number': '1010' # Fresh session ID
+            'premium': 'true', # Using premium is mandatory for Amazon.fr
+            'device_type': 'desktop',
+            'keep_headers': 'true' # Keeps our custom language headers
         }
         
-        with st.spinner(f'Simulating human browse on {market}... This takes ~30 seconds.'):
+        # Specific headers for France to fool Amazon's regional check
+        headers = {
+            "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
+            "Accept-Encoding": "gzip, deflate, br",
+            "Referer": f"https://www.{market}/"
+        }
+
+        with st.spinner(f'Unlocking {market} via {proxy_country.upper()} Premium Tunnel...'):
             try:
-                # Rendering takes time, so we set a long timeout
-                response = requests.get('http://api.scraperapi.com', params=payload, timeout=120)
+                response = requests.get('http://api.scraperapi.com', params=payload, headers=headers, timeout=60)
                 
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.content, "html.parser")
-                    items = soup.find_all("div", {"data-asin": True})
+                    # Targeting the exact result items
+                    items = soup.select('div[data-component-type="s-search-result"]')
                     
                     data_list = []
-                    titles = []
-                    
-                    for item in items:
-                        asin = item.get('data-asin')
-                        if not asin or len(asin) != 10: continue
+                    for item in items[:20]:
+                        title_tag = item.h2
+                        if not title_tag: continue
                         
-                        # Find title using multiple fallback methods
-                        title_el = item.select_one('h2 a span') or item.find("h2")
-                        title = title_el.text.strip() if title_el else "Unknown Title"
+                        asin = item.get('data-asin', 'N/A')
+                        price_tag = item.select_one('.a-price .a-offscreen')
+                        price = price_tag.text if price_tag else "N/A"
                         
-                        # Find price
-                        price_el = item.select_one('.a-price .a-offscreen')
-                        price = price_el.text if price_el else "N/A"
-                        
-                        if title != "Unknown Title":
-                            titles.append(title)
-                            data_list.append({
-                                "Title": title[:70],
-                                "ASIN": asin,
-                                "Price": price,
-                                "Link": f"https://www.{market}/dp/{asin}"
-                            })
+                        rating_tag = item.select_one('span.a-icon-alt')
+                        stars = rating_tag.text.split()[0] if rating_tag else "0"
+
+                        data_list.append({
+                            "Title": title_tag.text.strip()[:65] + "...",
+                            "ASIN": asin,
+                            "Price": price,
+                            "Stars": stars,
+                            "Link": f"https://www.{market}/dp/{asin}"
+                        })
 
                     if data_list:
-                        st.subheader("💡 Strategic Keywords Found")
-                        top_kw = extract_top_keywords(titles)
-                        cols = st.columns(5)
-                        for i, (word, count) in enumerate(top_kw):
-                            cols[i % 5].metric(word, f"{count}x")
-                        
-                        st.divider()
-                        st.subheader("📦 Market Overview")
-                        st.dataframe(pd.DataFrame(data_list[:20]), use_container_width=True)
+                        st.success(f"Success! {len(data_list)} books found in {market}.")
+                        st.dataframe(pd.DataFrame(data_list), use_container_width=True)
                     else:
-                        st.error("Amazon.fr security is still too high. Wait 1 hour or change the keyword.")
+                        st.error("Amazon France returned a custom layout. Try a generic keyword like 'agenda' to test.")
                 else:
-                    st.error(f"ScraperAPI Error: {response.status_code}")
+                    st.error(f"Blocked (Status {response.status_code}). ScraperAPI credits might be low or Amazon is rotating IPs.")
             except Exception as e:
-                st.error(f"Connection Failed: {e}")
+                st.error(f"Technical Error: {e}")
