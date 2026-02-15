@@ -2,91 +2,118 @@ import streamlit as st
 import pandas as pd
 import requests
 from bs4 import BeautifulSoup
-from datetime import datetime
+from collections import Counter
+import re
 
-# --- CONFIG ---
-st.set_page_config(page_title="KDP Global Spy Pro", layout="wide", page_icon="🌍")
+# --- PAGE CONFIGURATION ---
+st.set_page_config(page_title="KDP Niche & Keyword Spy", layout="wide", page_icon="🔑")
+
+# Hardcoded API Key for seamless access
 SCRAPER_API_KEY = "e08bf59c7ece2da93a40bb0608d59f47"
 
-st.title("🌍 KDP Global Niche Hunter (Advanced FR Unblock)")
-st.info("Specialized logic for Amazon.fr & Amazon.com bypass.")
+st.title("🔑 KDP Niche & Keyword Intelligence")
+st.markdown("Analyze competitor data and extract the best keywords for your 7 backend slots.")
+st.divider()
 
-# --- INPUTS ---
+# --- INPUT SECTION ---
 col1, col2 = st.columns([1, 2])
 with col1:
-    market = st.selectbox("Target Market", ["amazon.fr", "amazon.com", "amazon.co.uk"])
+    market = st.selectbox("Select Marketplace", ["amazon.fr", "amazon.com", "amazon.co.uk", "amazon.de"])
 with col2:
-    query = st.text_input("Niche Keyword:", placeholder="e.g., 'Agenda Scolaire'")
+    query = st.text_input("Enter Niche Keyword:", value="agenda scolaire 2026 2027")
 
-# --- SEASONAL STRATEGY ---
-def get_kdp_advice(kw):
-    curr_month = datetime.now().month
-    if "agenda" in kw.lower() or "planner" in kw.lower():
-        if 2 <= curr_month <= 5:
-            return "🛠️ **Preparation Phase:** Design and upload now for the summer back-to-school rush."
-        return "📈 **Observation Phase:** Monitor competition and adjust keywords."
-    return "📊 **Regular Niche:** Consistent demand. Focus on design quality."
+# --- KEYWORD EXTRACTION ENGINE ---
+def extract_top_keywords(titles):
+    # Common stop words to filter out (English & French)
+    stop_words = {
+        'a', 'an', 'the', 'for', 'with', 'and', 'in', 'on', 'of', 'to', 'is', 'it', 'that',
+        'de', 'la', 'le', 'et', 'pour', 'des', 'du', 'un', 'une', 'les', 'dans', 'par'
+    }
+    all_words = []
+    for title in titles:
+        # Extract alphanumeric words and convert to lowercase
+        words = re.findall(r'\w+', title.lower())
+        all_words.extend([w for w in words if w not in stop_words and len(w) > 2 and not w.isdigit()])
+    
+    return Counter(all_words).most_common(10)
 
-# --- MAIN ENGINE ---
-if st.button("🚀 Analyze Market"):
+# --- MAIN ANALYSIS PROCESS ---
+if st.button("🚀 Run Deep Analysis"):
     if query:
-        st.info(get_kdp_advice(query))
-        
-        # Determine Proxy Country
+        # Determine localization for proxy
         proxy_country = 'fr' if 'fr' in market else 'us'
         
-        # ScraperAPI with Advanced Parameters
         payload = {
             'api_key': SCRAPER_API_KEY,
             'url': f"https://www.{market}/s?k={query.replace(' ', '+')}&i=stripbooks",
             'country_code': proxy_country,
-            'premium': 'true', # Using premium is mandatory for Amazon.fr
-            'device_type': 'desktop',
-            'keep_headers': 'true' # Keeps our custom language headers
+            'premium': 'true'
         }
         
-        # Specific headers for France to fool Amazon's regional check
-        headers = {
-            "Accept-Language": "fr-FR,fr;q=0.9,en-US;q=0.8,en;q=0.7",
-            "Accept-Encoding": "gzip, deflate, br",
-            "Referer": f"https://www.{market}/"
-        }
-
-        with st.spinner(f'Unlocking {market} via {proxy_country.upper()} Premium Tunnel...'):
+        with st.spinner(f'Analyzing {market} market...'):
             try:
-                response = requests.get('http://api.scraperapi.com', params=payload, headers=headers, timeout=60)
-                
+                response = requests.get('http://api.scraperapi.com', params=payload, timeout=60)
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.content, "html.parser")
-                    # Targeting the exact result items
                     items = soup.select('div[data-component-type="s-search-result"]')
                     
+                    titles = []
                     data_list = []
-                    for item in items[:20]:
+                    
+                    for item in items[:25]: # Analyze top 25 results
                         title_tag = item.h2
                         if not title_tag: continue
                         
-                        asin = item.get('data-asin', 'N/A')
+                        full_title = title_tag.text.strip()
+                        titles.append(full_title)
+                        
                         price_tag = item.select_one('.a-price .a-offscreen')
                         price = price_tag.text if price_tag else "N/A"
                         
-                        rating_tag = item.select_one('span.a-icon-alt')
-                        stars = rating_tag.text.split()[0] if rating_tag else "0"
+                        asin = item.get('data-asin', 'N/A')
+                        rating = item.select_one('span.a-icon-alt').text.split()[0] if item.select_one('span.a-icon-alt') else "0"
 
                         data_list.append({
-                            "Title": title_tag.text.strip()[:65] + "...",
+                            "Title": full_title[:75] + "...",
                             "ASIN": asin,
                             "Price": price,
-                            "Stars": stars,
+                            "Rating": rating,
                             "Link": f"https://www.{market}/dp/{asin}"
                         })
 
                     if data_list:
-                        st.success(f"Success! {len(data_list)} books found in {market}.")
-                        st.dataframe(pd.DataFrame(data_list), use_container_width=True)
+                        # --- KEYWORDS DASHBOARD ---
+                        st.subheader("💡 Strategic Keywords for your 7 Slots")
+                        st.write("These keywords appear most frequently in top-selling titles:")
+                        
+                        top_keywords = extract_top_keywords(titles)
+                        kw_cols = st.columns(5)
+                        for i, (word, count) in enumerate(top_keywords):
+                            kw_cols[i % 5].metric(label=f"Keyword #{i+1}", value=word, delta=f"{count}x used")
+                        
+                        st.divider()
+                        
+                        # --- COMPETITOR DATA TABLE ---
+                        st.subheader("📦 Competitor Market Data")
+                        df = pd.DataFrame(data_list)
+                        st.dataframe(df, use_container_width=True)
+                        
+                        # --- DOWNLOAD SECTION ---
+                        csv = df.to_csv(index=False).encode('utf-8')
+                        st.download_button(
+                            label="📥 Download Research Report (CSV)",
+                            data=csv,
+                            file_name=f"KDP_Research_{query}.csv",
+                            mime="text/csv"
+                        )
                     else:
-                        st.error("Amazon France returned a custom layout. Try a generic keyword like 'agenda' to test.")
+                        st.error("Could not find results. Try a broader search term.")
                 else:
-                    st.error(f"Blocked (Status {response.status_code}). ScraperAPI credits might be low or Amazon is rotating IPs.")
+                    st.error(f"API Error: Status {response.status_code}")
             except Exception as e:
-                st.error(f"Technical Error: {e}")
+                st.error(f"Technical Failure: {e}")
+    else:
+        st.warning("Please enter a keyword to start.")
+
+st.divider()
+st.caption("KDP Professional Research Suite | Powered by ScraperAPI")
