@@ -6,11 +6,11 @@ from collections import Counter
 import re
 
 # --- GLOBAL CONFIG ---
-st.set_page_config(page_title="KDP Spy Ultra v6", layout="wide", page_icon="🚀")
+st.set_page_config(page_title="KDP Spy Ultra v7", layout="wide", page_icon="🛡️")
 SCRAPER_API_KEY = "e08bf59c7ece2da93a40bb0608d59f47"
 
-st.title("🚀 KDP Niche Intelligence (Global Recovery v6)")
-st.markdown("Equipped with **Adaptive Content Discovery** for Amazon.fr stability.")
+st.title("🛡️ KDP Niche Intelligence (Anti-Block v7)")
+st.markdown("Advanced bypass enabled for **Amazon.fr**. This version simulates real user behavior.")
 st.divider()
 
 # --- INPUT SECTION ---
@@ -29,28 +29,29 @@ def extract_top_keywords(titles):
         all_words.extend([w for w in words if w not in stop_words and len(w) > 2 and not w.isdigit()])
     return Counter(all_words).most_common(10)
 
-# --- MAIN SCRAPER ---
-if st.button("🔍 Run Adaptive Market Analysis"):
+# --- THE ENGINE ---
+if st.button("🔍 Run Deep Market Analysis"):
     if query:
         proxy_country = 'fr' if 'fr' in market else 'us'
         
-        # Enhanced Payload for France
+        # WE USE 'ULTRA' SETTINGS FOR FRANCE
         payload = {
             'api_key': SCRAPER_API_KEY,
             'url': f"https://www.{market}/s?k={query.replace(' ', '+')}&i=stripbooks",
             'country_code': proxy_country,
             'premium': 'true',
             'render': 'true',
-            'session_number': '789' # Reset session
+            'wait_for_selector': '.s-result-item', # Crucial: Wait for results to load
+            'session_number': '1010' # Fresh session ID
         }
         
-        with st.spinner(f'Initiating Adaptive Scan on {market}...'):
+        with st.spinner(f'Simulating human browse on {market}... This takes ~30 seconds.'):
             try:
-                response = requests.get('http://api.scraperapi.com', params=payload, timeout=90)
+                # Rendering takes time, so we set a long timeout
+                response = requests.get('http://api.scraperapi.com', params=payload, timeout=120)
                 
                 if response.status_code == 200:
                     soup = BeautifulSoup(response.content, "html.parser")
-                    # Adaptive Selector: Find any div that has an ASIN
                     items = soup.find_all("div", {"data-asin": True})
                     
                     data_list = []
@@ -60,25 +61,24 @@ if st.button("🔍 Run Adaptive Market Analysis"):
                         asin = item.get('data-asin')
                         if not asin or len(asin) != 10: continue
                         
-                        # Find title: look for any header or text near the ASIN link
-                        title_el = item.find("h2") or item.select_one(f'a[href*="{asin}"] span')
+                        # Find title using multiple fallback methods
+                        title_el = item.select_one('h2 a span') or item.find("h2")
                         title = title_el.text.strip() if title_el else "Unknown Title"
                         
-                        # Find price: look for any element with currency symbol
-                        price_el = item.select_one('.a-price .a-offscreen') or item.find(text=re.compile(r'[€$£]'))
-                        price = price_el.text if hasattr(price_el, 'text') else str(price_el)
+                        # Find price
+                        price_el = item.select_one('.a-price .a-offscreen')
+                        price = price_el.text if price_el else "N/A"
                         
                         if title != "Unknown Title":
                             titles.append(title)
                             data_list.append({
                                 "Title": title[:70],
                                 "ASIN": asin,
-                                "Price": price if len(price) < 15 else "View on Site",
+                                "Price": price,
                                 "Link": f"https://www.{market}/dp/{asin}"
                             })
 
                     if data_list:
-                        # Display Keywords
                         st.subheader("💡 Strategic Keywords Found")
                         top_kw = extract_top_keywords(titles)
                         cols = st.columns(5)
@@ -87,10 +87,10 @@ if st.button("🔍 Run Adaptive Market Analysis"):
                         
                         st.divider()
                         st.subheader("📦 Market Overview")
-                        st.table(pd.DataFrame(data_list[:20]))
+                        st.dataframe(pd.DataFrame(data_list[:20]), use_container_width=True)
                     else:
-                        st.error("Amazon France layout is still blocking parsing. Please try again in 10 minutes.")
+                        st.error("Amazon.fr security is still too high. Wait 1 hour or change the keyword.")
                 else:
-                    st.error(f"API Error: {response.status_code}")
+                    st.error(f"ScraperAPI Error: {response.status_code}")
             except Exception as e:
-                st.error(f"Connection Error: {e}")
+                st.error(f"Connection Failed: {e}")
