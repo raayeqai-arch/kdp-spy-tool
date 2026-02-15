@@ -1,104 +1,96 @@
 import streamlit as st
 import pandas as pd
-import requests
-from bs4 import BeautifulSoup
-import re
+import random
 
-# --- HELIUM 10 BRAND IDENTITY ---
-st.set_page_config(page_title="Helium 10 KDP Elite v6", layout="wide", page_icon="💎")
+# --- PAGE CONFIG ---
+st.set_page_config(page_title="AI Book Writer Pro", layout="wide", page_icon="📖")
 
-# Your ScraperAPI Key
-SCRAPER_API_KEY = "e08bf59c7ece2da93a40bb0608d59f47"
-
-# --- HELIUM 10 UI STYLING ---
+# --- CUSTOM CSS (To Match your Image) ---
 st.markdown("""
     <style>
-    .main { background-color: #f4f7f9; }
-    [data-testid="stSidebar"] { background-color: #0c1c2c; }
-    .stButton>button { 
-        background-color: #00aaff; color: white; border-radius: 4px; 
-        font-weight: bold; border: none; height: 3.5em; width: 100%;
-    }
-    .stButton>button:hover { background-color: #0088cc; }
-    .h10-card {
-        background: white; padding: 20px; border-radius: 4px;
-        box-shadow: 0 1px 3px rgba(0,0,0,0.1); border-top: 5px solid #00aaff;
-    }
+    .genre-card { background: white; padding: 15px; border-radius: 10px; border: 1px solid #ddd; text-align: center; transition: 0.3s; }
+    .genre-card:hover { border-color: #7f56d9; background: #f9f5ff; }
+    .main-button { background-color: #7f56d9; color: white; border-radius: 8px; width: 100%; height: 3em; font-weight: bold; }
+    .batch-section { background-color: #f6fef9; border: 1px solid #6ce9a6; padding: 20px; border-radius: 12px; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- SIDEBAR NAVIGATION ---
-st.sidebar.markdown("<h1 style='color: white; text-align: center;'>HELIUM 10</h1>", unsafe_allow_html=True)
-st.sidebar.markdown("---")
-menu = st.sidebar.radio("TOOLS", ["Magnet (7-Slot Gen)", "Profits (Niche Analyzer)", "X-Ray (Market Intel)"])
+st.title("📖 AI Book Writer")
+st.markdown("Generate complete books using AI. Perfect for fiction, non-fiction, guides, and more.")
 
-# --- CORE DATA ENGINE ---
-def fetch_amazon_data(market, query, country):
-    payload = {
-        'api_key': SCRAPER_API_KEY,
-        'url': f"https://www.{market}/s?k={query.replace(' ', '+')}&i=stripbooks",
-        'country_code': country, 'premium': 'true', 'render': 'true'
-    }
-    try:
-        # Increased timeout to prevent "Empty" results
-        return requests.get('http://api.scraperapi.com', params=payload, timeout=100)
-    except: return None
+# --- SECTION 1: RANDOM GENERATOR ---
+with st.expander("🎲 Random Book Generator", expanded=False):
+    st.write("Let AI create a complete book idea for you!")
+    theme_input = st.text_input("Theme (Optional)", placeholder="e.g., 'space adventure'...")
+    col_r1, col_r2 = st.columns(2)
+    with col_r1:
+        if st.button("✨ Generate from Theme"):
+            st.success("Title: The Echoes of Mars | Genre: Sci-Fi | Plot: A lost colony discovers an ancient signal.")
+    with col_r2:
+        if st.button("🎲 Fully Random"):
+            st.info("Title: The Silent Chef | Genre: Mystery | Plot: A gourmet murder at a silent retreat.")
 
-# --- TOOL 1: MAGNET (7-Slot Multi-Lang Generator) ---
-if menu == "Magnet (7-Slot Gen)":
-    st.title("🧲 Magnet: Keyword Research")
-    st.info("Generates optimized keywords in the target market language.")
+# --- SECTION 2: BATCH MODE ---
+st.markdown('<div class="batch-section">', unsafe_allow_html=True)
+st.subheader("📚 Batch Book Generator")
+show_batch = st.checkbox("Show Batch Mode")
+if show_batch:
+    num_books = st.number_input("How many books to generate?", 1, 10, 3)
+    for i in range(int(num_books)):
+        st.text_input(f"Book Title {i+1} *", key=f"title_{i}")
+st.markdown('</div>', unsafe_allow_html=True)
+
+st.divider()
+
+# --- SECTION 3: BOOK SETTINGS (The Core) ---
+st.subheader("Book Settings")
+col_s1, col_s2 = st.columns([2, 1])
+
+with col_s1:
+    genre = st.selectbox("Genre *", [
+        "Children's Adventure", "Children's Educational", "Romance", 
+        "Mystery", "Fantasy", "Science Fiction", "Self-Help", "How-To Guide"
+    ])
     
-    col_lang, col_query = st.columns([1, 2])
-    with col_lang:
-        lang = st.selectbox("Market Language", ["French (FR)", "English (US/UK)", "German (DE)"])
-    with col_query:
-        seed = st.text_input("Enter Niche Keyword:", value="agenda scolaire")
+    book_title = st.text_input("Book Title (Optional - AI will generate if left blank)")
+    author = st.text_input("Author Name (Optional)", value="Anonymous")
+    
+    c_col1, c_col2 = st.columns(2)
+    with c_col1:
+        chapters = st.number_input("Number of Chapters *", 1, 50, 10)
+    with c_col2:
+        words_per = st.number_input("Words per Chapter *", 100, 5000, 800)
+    
+    total_words = chapters * words_per
+    st.caption(f"Total Book: ~{total_words:,} words ({int(total_words/250)} pages)")
 
-    if st.button("GET KEYWORDS"):
-        # Specialized 7-Slot Logic for French Market
-        if "French" in lang:
-            keywords = [f"{seed} 2025 2026", f"meilleur {seed} étudiant", f"{seed} scolaire collège", f"organisateur {seed} journalier", f"cadeau rentrée {seed}", f"planificateur {seed} a5", f"{seed} primaire lycée"]
-        else:
-            keywords = [f"best {seed} 2025", f"{seed} for students", f"personalized {seed} planner", f"large print {seed} book", f"academic {seed} journal", f"minimalist {seed}", f"daily {seed} organization"]
-        
-        st.success(f"Top 7 Backend Slots for {lang}:")
-        for i, k in enumerate(keywords): st.code(f"Slot {i+1}: {k}")
+    audience = st.radio("Target Audience *", ["Ages 3-7", "Ages 8-12", "Teens", "Adults"], horizontal=True)
+    tone = st.selectbox("Writing Tone *", ["Professional", "Casual", "Playful", "Inspirational"])
+    
+    description = st.text_area("Book Description (Optional)")
+    if st.button("🪄 AI Generate Description"):
+        st.write("Generating a professional description based on your title...")
 
-# --- TOOL 2: PROFITS (Niche Analyzer) ---
-elif menu == "Profits (Niche Analyzer)":
-    st.title("📈 Profits: Market Profitability")
-    c1, c2 = st.columns([1, 2])
-    with c1: 
-        mkt = st.selectbox("Select Marketplace", ["amazon.fr", "amazon.com", "amazon.de"])
-    with c2: 
-        q = st.text_input("Analyze Niche Keyword:", value="cahier de texte")
+with col_s2:
+    st.subheader("Progress")
+    st.info("Configure settings and click generate.")
+    
+    st.subheader("🤖 AI Model *")
+    model = st.radio("Choose Model", ["GPT-4o Mini (Recommended)", "GPT-4o (Premium)"])
+    
+    st.subheader("📦 Export Formats")
+    formats = st.multiselect("Select Formats", ["PDF (KDP-ready 6x9\")", "EPUB", "MOBI", "KPF"])
 
-    if st.button("ANALYZE MARKET"):
-        cc = 'fr' if 'fr' in mkt else ('de' if 'de' in mkt else 'us')
-        with st.spinner(f"Establishing secure tunnel to {mkt}..."):
-            res = fetch_amazon_data(mkt, q, cc)
-            if res and res.status_code == 200:
-                soup = BeautifulSoup(res.content, "html.parser")
-                items = soup.select('div[data-component-type="s-search-result"]')
-                df_data = []
-                for item in items[:20]:
-                    t = item.h2.text.strip()[:70] if item.h2 else "N/A"
-                    a = item.get('data-asin', 'N/A')
-                    p = item.select_one('.a-price .a-offscreen').text if item.select_one('.a-price .a-offscreen') else "N/A"
-                    df_data.append({"Title": t, "ASIN": a, "Price": p})
-                
-                if df_data:
-                    st.dataframe(pd.DataFrame(df_data), use_container_width=True)
-                else:
-                    st.error("No items found. Try a broader keyword.")
-            else: st.error("API Connection Refused. Please wait 60 seconds.")
-
-# --- TOOL 3: X-RAY (Market Intel) ---
-elif menu == "X-Ray (Market Intel)":
-    st.title("💎 X-Ray: Market Overview")
-    st.markdown('<div class="h10-card"><h4>Market Viability Report</h4><p>Analyze price averages and competition levels for your chosen niche.</p></div>', unsafe_allow_html=True)
-    st.warning("Note: X-Ray uses Deep Scanning. This may take up to 60 seconds.")
-
-st.sidebar.markdown("---")
-st.sidebar.caption("KDP Helium Elite v6.0 | Partner Suite")
+# --- GENERATE ACTION ---
+if st.button("🚀 Generate Book", use_container_width=True):
+    with st.status("Generating Book Content...", expanded=True) as status:
+        st.write("Generating Chapter 1: The Beginning...")
+        st.progress(10)
+        # Here you would call your OpenAI/Anthropic API
+        st.write("Generating Chapter 2: The Rising Conflict...")
+        st.progress(25)
+        status.update(label="Book Generation Complete!", state="complete", expanded=False)
+    
+    st.balloons()
+    st.success("Your book is ready for download!")
+    st.download_button("📥 Download PDF (6x9\")", "Book Content Here", file_name="kdp_book.pdf")
